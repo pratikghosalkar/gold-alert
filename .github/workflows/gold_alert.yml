@@ -1,0 +1,73 @@
+name: Gold Rate Alert — Pune
+
+on:
+  schedule:
+    # Runs every 10 minutes: 9:00 AM – 9:00 PM IST (UTC+5:30)
+    # 9:00 AM IST = 3:30 AM UTC | 9:00 PM IST = 3:30 PM UTC
+    - cron: "30-59/10 3 * * *"    # 3:30, 3:40, 3:50 UTC (9:00–9:30 AM IST)
+    - cron: "*/10 4-14 * * *"     # Every 10 min, 4:00–14:50 UTC (9:30 AM–8:20 PM IST)
+    - cron: "0,10,20,30 15 * * *" # 15:00–15:30 UTC (8:30–9:00 PM IST)
+
+  # Allow manual trigger from GitHub UI for testing
+  workflow_dispatch:
+
+jobs:
+  check-gold-rate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check Pune gold rate and send alerts
+        env:
+          # ── Thresholds ──────────────────────────────────────────────────
+          THRESHOLD_22K: ${{ secrets.THRESHOLD_22K }}
+          THRESHOLD_24K: ${{ secrets.THRESHOLD_24K }}
+          GRAMS_22K:     ${{ secrets.GRAMS_22K }}
+          GRAMS_24K:     ${{ secrets.GRAMS_24K }}
+          BUDGET_22K:    ${{ secrets.BUDGET_22K }}
+          BUDGET_24K:    ${{ secrets.BUDGET_24K }}
+
+          # ── WhatsApp alert numbers (comma-separated, same order as keys) ─
+          # Example: "919876543210,919812345678"
+          ALERT_NUMBERS:  ${{ secrets.ALERT_NUMBERS }}
+          ALERT_API_KEYS: ${{ secrets.ALERT_API_KEYS }}
+
+          # ── WhatsApp health check (optional — leave blank to use alert numbers)
+          HEALTH_NUMBER:  ${{ secrets.HEALTH_NUMBER }}
+          HEALTH_API_KEY: ${{ secrets.HEALTH_API_KEY }}
+
+          # ── Email alert recipients (comma-separated) ─────────────────────
+          # Example: "you@gmail.com,spouse@gmail.com"
+          ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}
+
+          # ── Email health check (optional — leave blank to use alert emails)
+          HEALTH_EMAIL: ${{ secrets.HEALTH_EMAIL }}
+
+          # ── Gmail credentials ────────────────────────────────────────────
+          EMAIL_SENDER:   ${{ secrets.EMAIL_SENDER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+
+          # ── Daily health check toggle ────────────────────────────────────
+          DAILY_HEALTH_CHECK: ${{ secrets.DAILY_HEALTH_CHECK }}
+
+        run: python src/gold_alert.py
+
+      - name: Upload last check log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: last-check-${{ github.run_number }}
+          path: last_check.json
+          retention-days: 7
