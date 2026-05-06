@@ -4,9 +4,9 @@ on:
   schedule:
     # Runs every 10 minutes: 9:00 AM – 9:00 PM IST (UTC+5:30)
     # 9:00 AM IST = 3:30 AM UTC | 9:00 PM IST = 3:30 PM UTC
-    - cron: "30-59/10 3 * * *"    # 3:30, 3:40, 3:50 UTC (9:00–9:30 AM IST)
-    - cron: "*/10 4-14 * * *"     # Every 10 min, 4:00–14:50 UTC (9:30 AM–8:20 PM IST)
-    - cron: "0,10,20,30 15 * * *" # 15:00–15:30 UTC (8:30–9:00 PM IST)
+    - cron: "30,45 3 * * *"
+    - cron: "0,15,30,45 4-14 * * *"
+    - cron: "0,15,30 15 * * *"
 
   # Allow manual trigger from GitHub UI for testing
   workflow_dispatch:
