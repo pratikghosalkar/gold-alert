@@ -159,7 +159,7 @@ def send_health_email(subject: str, body: str):
 
 # ─── Scrape Pune Gold Rate ───────────────────────────────────────────────────
 def fetch_pune_gold_rates():
-    url = "https://www.goodreturns.in/gold-rates-in-pune.html"
+    url = "https://www.goodreturns.in/gold-rates/pune.html"
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -182,13 +182,13 @@ def fetch_pune_gold_rates():
         if "22" in row_text:
             prices   = re.findall(r"[\d,]{4,}", row_text)
             prices   = [int(p.replace(",", "")) for p in prices if int(p.replace(",", "")) > 1000]
-            per_gram = [p for p in prices if 3000 < p < 15000]
+            per_gram = [p for p in prices if 5000 < p < 25000]
             if per_gram:
                 rates["22K"] = per_gram[0]
         if "24" in row_text:
             prices   = re.findall(r"[\d,]{4,}", row_text)
             prices   = [int(p.replace(",", "")) for p in prices if int(p.replace(",", "")) > 1000]
-            per_gram = [p for p in prices if 3000 < p < 15000]
+            per_gram = [p for p in prices if 5000 < p < 25000]
             if per_gram:
                 rates["24K"] = per_gram[0]
 
@@ -199,7 +199,7 @@ def fetch_pune_gold_rates():
             match = re.match(r"^[₹\d,]+$", text)
             if match:
                 val = int(re.sub(r"[^\d]", "", text))
-                if 3000 < val < 15000:
+                if 5000 < val < 25000:
                     if "22K" not in rates:
                         rates["22K"] = val
                     elif "24K" not in rates:
