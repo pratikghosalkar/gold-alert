@@ -159,6 +159,11 @@ def send_health_email(subject: str, body: str):
 
 # ─── Scrape Pune Gold Rate ───────────────────────────────────────────────────
 def fetch_pune_gold_rates():
+    """
+    Scrapes today Pune gold rate (22K and 24K) from GoodReturns.in
+    Uses span IDs: #22K-price and #24K-price directly — most reliable method.
+    Falls back to table row parsing if span IDs not found.
+    """
     url = "https://www.goodreturns.in/gold-rates/pune.html"
     headers = {
         "User-Agent": (
@@ -170,42 +175,69 @@ def fetch_pune_gold_rates():
         "Accept-Language": "en-IN,en;q=0.9",
         "Referer": "https://www.google.com/",
     }
+
     log.info(f"Fetching Pune gold rates from {url}")
     resp = requests.get(url, headers=headers, timeout=15)
     resp.raise_for_status()
+
     soup  = BeautifulSoup(resp.text, "html.parser")
     rates = {}
 
-    for row in soup.find_all("tr"):
-        cells    = [td.get_text(strip=True) for td in row.find_all("td")]
-        row_text = " ".join(cells)
-        if "22" in row_text:
-            prices   = re.findall(r"[\d,]{4,}", row_text)
-            prices   = [int(p.replace(",", "")) for p in prices if int(p.replace(",", "")) > 1000]
-            per_gram = [p for p in prices if 5000 < p < 25000]
-            if per_gram:
-                rates["22K"] = per_gram[0]
-        if "24" in row_text:
-            prices   = re.findall(r"[\d,]{4,}", row_text)
-            prices   = [int(p.replace(",", "")) for p in prices if int(p.replace(",", "")) > 1000]
-            per_gram = [p for p in prices if 5000 < p < 25000]
-            if per_gram:
-                rates["24K"] = per_gram[0]
+    # ── Strategy 1: Direct span IDs (most reliable) ──────────────────────────
+    span_22k = soup.find("span", {"id": "22K-price"})
+    span_24k = soup.find("span", {"id": "24K-price"})
 
+    if span_22k:
+        val = int(re.sub(r"[^\d]", "", span_22k.get_text(strip=True)))
+        rates["22K"] = val
+        log.info(f"22K from span#22K-price: Rs.{val}/gram")
+
+    if span_24k:
+        val = int(re.sub(r"[^\d]", "", span_24k.get_text(strip=True)))
+        rates["24K"] = val
+        log.info(f"24K from span#24K-price: Rs.{val}/gram")
+
+    # ── Strategy 2: Fallback — table rows with Carat text ────────────────────
     if not rates:
-        log.warning("Table parsing failed, trying fallback selectors...")
-        for tag in soup.find_all(["span", "td", "div"]):
-            text  = tag.get_text(strip=True)
-            match = re.match(r"^[₹\d,]+$", text)
-            if match:
-                val = int(re.sub(r"[^\d]", "", text))
-                if 5000 < val < 25000:
-                    if "22K" not in rates:
-                        rates["22K"] = val
-                    elif "24K" not in rates:
-                        rates["24K"] = val
+        log.warning("Span IDs not found, trying table rows...")
+        PER_GRAM_MIN = 10000
+        PER_GRAM_MAX = 20000
 
-    log.info(f"Fetched rates: {rates}")
+        for row in soup.find_all("tr"):
+            row_text = row.get_text(" ", strip=True)
+            is_22k = any(k in row_text for k in ["22 Carat", "22 carat", "22K"])
+            is_24k = any(k in row_text for k in ["24 Carat", "24 carat", "24K"])
+            if not is_22k and not is_24k:
+                continue
+            numbers = [int(n.replace(",", "")) for n in re.findall(r"[\d,]+", row_text)]
+            valid   = sorted([n for n in numbers if PER_GRAM_MIN <= n <= PER_GRAM_MAX])
+            if valid:
+                if is_22k and "22K" not in rates:
+                    rates["22K"] = valid[0]
+                    log.info(f"22K from table fallback: Rs.{valid[0]}/gram")
+                if is_24k and "24K" not in rates:
+                    rates["24K"] = valid[0]
+                    log.info(f"24K from table fallback: Rs.{valid[0]}/gram")
+            if "22K" in rates and "24K" in rates:
+                break
+
+    # ── Strategy 3: Meta description ─────────────────────────────────────────
+    if not rates:
+        log.warning("Table fallback failed, trying meta description...")
+        meta = soup.find("meta", {"name": "description"}) or soup.find("meta", {"property": "og:description"})
+        if meta:
+            content_text = meta.get("content", "")
+            log.info(f"Meta: {content_text[:200]}")
+            m22 = re.search(r"Rs\.?(\d[\d,]+)\s*per gram for 22", content_text, re.IGNORECASE)
+            m24 = re.search(r"Rs\.?(\d[\d,]+)\s*per gram for 24", content_text, re.IGNORECASE)
+            if m22:
+                rates["22K"] = int(m22.group(1).replace(",", ""))
+                log.info(f"22K from meta: Rs.{rates[chr(50)+chr(50)+chr(75)]}/gram")
+            if m24:
+                rates["24K"] = int(m24.group(1).replace(",", ""))
+                log.info(f"24K from meta: Rs.{rates[chr(50)+chr(52)+chr(75)]}/gram")
+
+    log.info(f"Final rates: {rates}")
     return rates
 
 
