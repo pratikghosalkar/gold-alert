@@ -36,16 +36,16 @@ def now_ist():
 # ─── Config from GitHub Secrets ─────────────────────────────────────────────
 
 # Per-gram thresholds (₹/gram)
-THRESHOLD_22K = float(os.environ.get("THRESHOLD_22K", "0"))
-THRESHOLD_24K = float(os.environ.get("THRESHOLD_24K", "0"))
+THRESHOLD_22K = float(os.environ.get("THRESHOLD_22K") or "0")
+THRESHOLD_24K = float(os.environ.get("THRESHOLD_24K") or "0")
 
 # Gram quantity
-GRAMS_22K = float(os.environ.get("GRAMS_22K", "1"))
-GRAMS_24K = float(os.environ.get("GRAMS_24K", "1"))
+GRAMS_22K = float(os.environ.get("GRAMS_22K") or "1")
+GRAMS_24K = float(os.environ.get("GRAMS_24K") or "1")
 
 # Total budget thresholds (overrides per-gram if set)
-BUDGET_22K = float(os.environ.get("BUDGET_22K", "0"))
-BUDGET_24K = float(os.environ.get("BUDGET_24K", "0"))
+BUDGET_22K = float(os.environ.get("BUDGET_22K") or "0")
+BUDGET_24K = float(os.environ.get("BUDGET_24K") or "0")
 
 # ── WhatsApp Numbers ─────────────────────────────────────────────────────────
 #
