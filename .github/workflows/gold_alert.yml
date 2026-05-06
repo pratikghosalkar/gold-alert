@@ -2,13 +2,12 @@ name: Gold Rate Alert — Pune
 
 on:
   schedule:
-    # Runs every 10 minutes: 9:00 AM – 9:00 PM IST (UTC+5:30)
-    # 9:00 AM IST = 3:30 AM UTC | 9:00 PM IST = 3:30 PM UTC
-    - cron: "30,45 3 * * *"
-    - cron: "0,15,30,45 4-14 * * *"
-    - cron: "0,15,30 15 * * *"
+    # Runs every 15 minutes: 9:00 AM – 8:00 PM IST (UTC+5:30)
+    # 9:00 AM IST = 3:30 AM UTC | 8:00 PM IST = 2:30 PM UTC
+    - cron: "30,45 3 * * *"         # 3:30, 3:45 UTC  → 9:00, 9:15 AM IST
+    - cron: "0,15,30,45 4-13 * * *" # Every 15 min    → 9:30 AM – 7:45 PM IST
+    - cron: "0,15,30 14 * * *"      # 14:00–14:30 UTC → 7:30–8:00 PM IST
 
-  # Allow manual trigger from GitHub UI for testing
   workflow_dispatch:
 
 jobs:
@@ -40,7 +39,6 @@ jobs:
           BUDGET_24K:    ${{ secrets.BUDGET_24K }}
 
           # ── WhatsApp alert numbers (comma-separated, same order as keys) ─
-          # Example: "919876543210,919812345678"
           ALERT_NUMBERS:  ${{ secrets.ALERT_NUMBERS }}
           ALERT_API_KEYS: ${{ secrets.ALERT_API_KEYS }}
 
@@ -49,7 +47,6 @@ jobs:
           HEALTH_API_KEY: ${{ secrets.HEALTH_API_KEY }}
 
           # ── Email alert recipients (comma-separated) ─────────────────────
-          # Example: "you@gmail.com,spouse@gmail.com"
           ALERT_EMAILS: ${{ secrets.ALERT_EMAILS }}
 
           # ── Email health check (optional — leave blank to use alert emails)
