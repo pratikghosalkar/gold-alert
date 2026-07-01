@@ -2,7 +2,7 @@
 
 Automatically checks the **exact Pune gold rate** every 10 minutes and sends you a **WhatsApp + Email alert** when the price drops below your threshold.
 
-- ✅ Exact Pune 22K & 24K rates (scraped from Jos Alukkas Online)
+- ✅ Exact Pune 22K & 24K rates (fetched from PNG Gadgil & Sons' rate API)
 - ✅ WhatsApp notification via CallMeBot (free)
 - ✅ Email notification via Gmail
 - ✅ Runs every 10 minutes during market hours (Mon–Sat)
@@ -134,7 +134,7 @@ Set `THRESHOLD_24K` = `0`
 |---|---|
 | No WhatsApp received | Re-send activation message to CallMeBot, check API key |
 | No email received | Check spam folder, verify Gmail App Password |
-| Scraping fails | Jos Alukkas Online may have changed layout — open an issue |
+| Fetch fails | PNG Gadgil & Sons' rate API may have changed — open an issue |
 | Workflow not running | Check Actions tab is enabled in your repo settings |
 
 ---
@@ -150,5 +150,5 @@ After each run, GitHub saves a `last_check.json` file under **Actions → Artifa
 
 ## ⚠️ Disclaimer
 
-Gold rates are scraped from Jos Alukkas Online for informational purposes only.
+Gold rates are fetched from PNG Gadgil & Sons' rate API for informational purposes only.
 Always verify rates with your local jeweller before making purchase decisions.

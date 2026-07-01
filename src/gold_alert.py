@@ -1,6 +1,6 @@
 """
 Gold Rate Alert System
-Scrapes exact Pune gold rates from Jos Alukkas Online
+Fetches exact Pune gold rates from PNG Gadgil & Sons' rate API
 Sends WhatsApp (CallMeBot) + Email alerts when rate drops below threshold
 Supports:
   - Multiple WhatsApp numbers for alerts
@@ -10,7 +10,6 @@ Supports:
 """
 
 import os
-import re
 import json
 import smtplib
 import requests
@@ -18,7 +17,6 @@ import logging
 from datetime import datetime, timezone, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from bs4 import BeautifulSoup
 
 # ─── Logging ────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -157,60 +155,29 @@ def send_health_email(subject: str, body: str):
         send_email_to(ALERT_EMAILS, subject, body)
 
 
-# ─── Scrape Pune Gold Rate ───────────────────────────────────────────────────
+# ─── Fetch Pune Gold Rate ────────────────────────────────────────────────────
 def fetch_pune_gold_rates():
     """
-    Scrapes today Pune gold rate (22K and 24K) from Jos Alukkas.
-    Uses .carat-card blocks (each with a .karat label and .amount price) —
-    server-rendered, no JS execution required.
-    Falls back to regex over raw text if the markup structure changes.
+    Fetches today's Pune gold rate (22K and 24K, 999 purity) from the JSON API
+    that backs PNG Gadgil & Sons' gold rate page. Scraping their HTML directly
+    is unreliable — the rate table there is filled in client-side via this
+    same API call, so we hit it directly instead.
     """
-    url = "https://www.josalukkasonline.com/gold-rate-today/Pune"
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-IN,en;q=0.9",
-        "Referer": "https://www.google.com/",
-    }
+    url = "https://goldpriceeditor.droidinfinity.com/api/external/metal-prices/1085"
 
     log.info(f"Fetching Pune gold rates from {url}")
-    resp = requests.get(url, headers=headers, timeout=15)
+    resp = requests.get(url, timeout=15)
     resp.raise_for_status()
+    data = resp.json()
 
-    soup  = BeautifulSoup(resp.text, "html.parser")
     rates = {}
-
-    # ── Strategy 1: .carat-card blocks (most reliable) ───────────────────────
-    for card in soup.find_all(class_="carat-card"):
-        karat = card.find(class_="karat")
-        amount = card.find(class_="amount")
-        if not karat or not amount:
-            continue
-        label = karat.get_text(strip=True)
-        val   = int(re.sub(r"[^\d]", "", amount.get_text(strip=True)))
-        if "22K" in label:
-            rates["22K"] = val
-            log.info(f"22K from carat-card: Rs.{val}/gram")
-        elif "24K" in label:
-            rates["24K"] = val
-            log.info(f"24K from carat-card: Rs.{val}/gram")
-
-    # ── Strategy 2: Fallback — regex over raw text ───────────────────────────
-    if not rates:
-        log.warning("carat-card blocks not found, trying regex fallback...")
-        text_content = soup.get_text(" ", strip=True)
-        m22 = re.search(r"22K\s*Gold[^₹]*₹\s*([\d,]+)", text_content)
-        m24 = re.search(r"24K\s*Gold[^₹]*₹\s*([\d,]+)", text_content)
-        if m22:
-            rates["22K"] = int(m22.group(1).replace(",", ""))
-            log.info(f"22K from regex fallback: Rs.{rates['22K']}/gram")
-        if m24:
-            rates["24K"] = int(m24.group(1).replace(",", ""))
-            log.info(f"24K from regex fallback: Rs.{rates['24K']}/gram")
+    metal_rates = data.get("rates", {})
+    if "goldPrice22K" in metal_rates:
+        rates["22K"] = int(metal_rates["goldPrice22K"])
+        log.info(f"22K: Rs.{rates['22K']}/gram")
+    if "goldPrice24K" in metal_rates:
+        rates["24K"] = int(metal_rates["goldPrice24K"])
+        log.info(f"24K: Rs.{rates['24K']}/gram")
 
     log.info(f"Final rates: {rates}")
     return rates
@@ -258,7 +225,7 @@ def main():
         error_msg = (
             f"⚠️ Gold Alert System — Scraping Failed\n"
             f"Could not fetch Pune gold rates at {now} IST\n"
-            f"Please check josalukkasonline.com manually."
+            f"Please check pngadgilandsons.com manually."
         )
         send_alert_whatsapp(error_msg)
         send_alert_email("⚠️ Gold Alert — Scraping Failed", error_msg)
