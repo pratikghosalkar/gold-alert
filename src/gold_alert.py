@@ -1,6 +1,6 @@
 """
 Gold Rate Alert System
-Scrapes exact Pune gold rates from GoodReturns.in
+Scrapes exact Pune gold rates from Jos Alukkas Online
 Sends WhatsApp (CallMeBot) + Email alerts when rate drops below threshold
 Supports:
   - Multiple WhatsApp numbers for alerts
@@ -160,11 +160,12 @@ def send_health_email(subject: str, body: str):
 # ─── Scrape Pune Gold Rate ───────────────────────────────────────────────────
 def fetch_pune_gold_rates():
     """
-    Scrapes today Pune gold rate (22K and 24K) from GoodReturns.in
-    Uses span IDs: #22K-price and #24K-price directly — most reliable method.
-    Falls back to table row parsing if span IDs not found.
+    Scrapes today Pune gold rate (22K and 24K) from Jos Alukkas.
+    Uses .carat-card blocks (each with a .karat label and .amount price) —
+    server-rendered, no JS execution required.
+    Falls back to regex over raw text if the markup structure changes.
     """
-    url = "https://www.goodreturns.in/gold-rates/pune.html"
+    url = "https://www.josalukkasonline.com/gold-rate-today/Pune"
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -183,59 +184,33 @@ def fetch_pune_gold_rates():
     soup  = BeautifulSoup(resp.text, "html.parser")
     rates = {}
 
-    # ── Strategy 1: Direct span IDs (most reliable) ──────────────────────────
-    span_22k = soup.find("span", {"id": "22K-price"})
-    span_24k = soup.find("span", {"id": "24K-price"})
+    # ── Strategy 1: .carat-card blocks (most reliable) ───────────────────────
+    for card in soup.find_all(class_="carat-card"):
+        karat = card.find(class_="karat")
+        amount = card.find(class_="amount")
+        if not karat or not amount:
+            continue
+        label = karat.get_text(strip=True)
+        val   = int(re.sub(r"[^\d]", "", amount.get_text(strip=True)))
+        if "22K" in label:
+            rates["22K"] = val
+            log.info(f"22K from carat-card: Rs.{val}/gram")
+        elif "24K" in label:
+            rates["24K"] = val
+            log.info(f"24K from carat-card: Rs.{val}/gram")
 
-    if span_22k:
-        val = int(re.sub(r"[^\d]", "", span_22k.get_text(strip=True)))
-        rates["22K"] = val
-        log.info(f"22K from span#22K-price: Rs.{val}/gram")
-
-    if span_24k:
-        val = int(re.sub(r"[^\d]", "", span_24k.get_text(strip=True)))
-        rates["24K"] = val
-        log.info(f"24K from span#24K-price: Rs.{val}/gram")
-
-    # ── Strategy 2: Fallback — table rows with Carat text ────────────────────
+    # ── Strategy 2: Fallback — regex over raw text ───────────────────────────
     if not rates:
-        log.warning("Span IDs not found, trying table rows...")
-        PER_GRAM_MIN = 10000
-        PER_GRAM_MAX = 20000
-
-        for row in soup.find_all("tr"):
-            row_text = row.get_text(" ", strip=True)
-            is_22k = any(k in row_text for k in ["22 Carat", "22 carat", "22K"])
-            is_24k = any(k in row_text for k in ["24 Carat", "24 carat", "24K"])
-            if not is_22k and not is_24k:
-                continue
-            numbers = [int(n.replace(",", "")) for n in re.findall(r"[\d,]+", row_text)]
-            valid   = sorted([n for n in numbers if PER_GRAM_MIN <= n <= PER_GRAM_MAX])
-            if valid:
-                if is_22k and "22K" not in rates:
-                    rates["22K"] = valid[0]
-                    log.info(f"22K from table fallback: Rs.{valid[0]}/gram")
-                if is_24k and "24K" not in rates:
-                    rates["24K"] = valid[0]
-                    log.info(f"24K from table fallback: Rs.{valid[0]}/gram")
-            if "22K" in rates and "24K" in rates:
-                break
-
-    # ── Strategy 3: Meta description ─────────────────────────────────────────
-    if not rates:
-        log.warning("Table fallback failed, trying meta description...")
-        meta = soup.find("meta", {"name": "description"}) or soup.find("meta", {"property": "og:description"})
-        if meta:
-            content_text = meta.get("content", "")
-            log.info(f"Meta: {content_text[:200]}")
-            m22 = re.search(r"Rs\.?(\d[\d,]+)\s*per gram for 22", content_text, re.IGNORECASE)
-            m24 = re.search(r"Rs\.?(\d[\d,]+)\s*per gram for 24", content_text, re.IGNORECASE)
-            if m22:
-                rates["22K"] = int(m22.group(1).replace(",", ""))
-                log.info(f"22K from meta: Rs.{rates[chr(50)+chr(50)+chr(75)]}/gram")
-            if m24:
-                rates["24K"] = int(m24.group(1).replace(",", ""))
-                log.info(f"24K from meta: Rs.{rates[chr(50)+chr(52)+chr(75)]}/gram")
+        log.warning("carat-card blocks not found, trying regex fallback...")
+        text_content = soup.get_text(" ", strip=True)
+        m22 = re.search(r"22K\s*Gold[^₹]*₹\s*([\d,]+)", text_content)
+        m24 = re.search(r"24K\s*Gold[^₹]*₹\s*([\d,]+)", text_content)
+        if m22:
+            rates["22K"] = int(m22.group(1).replace(",", ""))
+            log.info(f"22K from regex fallback: Rs.{rates['22K']}/gram")
+        if m24:
+            rates["24K"] = int(m24.group(1).replace(",", ""))
+            log.info(f"24K from regex fallback: Rs.{rates['24K']}/gram")
 
     log.info(f"Final rates: {rates}")
     return rates
@@ -283,7 +258,7 @@ def main():
         error_msg = (
             f"⚠️ Gold Alert System — Scraping Failed\n"
             f"Could not fetch Pune gold rates at {now} IST\n"
-            f"Please check GoodReturns.in manually."
+            f"Please check josalukkasonline.com manually."
         )
         send_alert_whatsapp(error_msg)
         send_alert_email("⚠️ Gold Alert — Scraping Failed", error_msg)
